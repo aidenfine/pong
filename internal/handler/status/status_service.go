@@ -14,9 +14,9 @@ import (
 	"go.uber.org/zap"
 )
 
-var DATABASE_NAME = "dev"
-var COLLECTION_NAME = "status"
-var LIVE_STATUS_COLLECTION_NAME = "live_status"
+var DATABASE_NAME = os.Getenv("DB_ENV")
+var COLLECTION_NAME = os.Getenv("status")
+var LIVE_STATUS_COLLECTION_NAME = os.Getenv("LIVE_STATUS_COLLECTION_NAME")
 var POLLING_RATE = 30
 
 type StatusHandler struct {
