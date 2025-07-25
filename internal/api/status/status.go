@@ -12,5 +12,8 @@ func Routes(client *mongo.Client) chi.Router {
 	r.Get("/health", status.Health())
 	r.Get("/poll", handler.StartPolling(client))
 	r.Post("/", handler.CreateStatusUpdate(client))
+	r.Post("/test", handler.TestInsert(client))
+	r.Get("/analytics", handler.GetAnalytics(client))
+	r.Get("/start-snapshots", handler.StartLiveSnapshot(client))
 	return r
 }
