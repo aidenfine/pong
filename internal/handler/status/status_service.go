@@ -17,7 +17,7 @@ import (
 )
 
 var POLLING_RATE = 30
-var SNAPSHOT_CREATION_RATE = 5
+var SNAPSHOT_CREATION_RATE = 2
 
 type StatusHandler struct {
 	DB *mongo.Client
@@ -92,17 +92,17 @@ func (h *StatusHandler) StartPolling(client *mongo.Client) http.HandlerFunc {
 					if up {
 						status = "OK"
 					}
-					_, err := coll.InsertOne(ctx, bson.M{
+					doc := bson.M{
 						"service":   url,
 						"status":    status,
 						"timestamp": time.Now().UTC(),
-					})
+					}
+					_, err := coll.InsertOne(ctx, doc)
 					if err != nil {
 						logger.Error("Insert Failed", zap.Error(err))
 					} else {
-						fmt.Println("Inserted doc")
+						fmt.Println("Inserted doc", doc)
 					}
-
 				}
 
 			}
@@ -126,13 +126,16 @@ func (h *StatusHandler) StartLiveSnapshot(client *mongo.Client) http.HandlerFunc
 					return
 
 				case <-ticker.C:
-					latestSnapshot, err := h.fetchLatestSnapshot("1")
+					var timestampToQuery time.Time = time.Now().UTC().AddDate(0, 0, -7)
+					latestSnapshot, err := h.fetchLatestSnapshot(getUrlenv())
 					if err != nil {
 						logger.Error("Failed to fetch latest snapshot", zap.Error(err))
-						continue
+					} else {
+						fmt.Println("Found snapshot using", latestSnapshot)
+						timestampToQuery = latestSnapshot.Timestamp
 					}
 
-					countMap, err := h.fetchDatapointsSinceDate(getUrlenv(), latestSnapshot.CreatedAt)
+					countMap, err := h.fetchDatapointsSinceDate(getUrlenv(), timestampToQuery)
 					if err != nil {
 						logger.Error("Failed to fetch datapoints", zap.Error(err))
 						continue
@@ -154,8 +157,7 @@ func (h *StatusHandler) StartLiveSnapshot(client *mongo.Client) http.HandlerFunc
 					uptimePercentage := math.Round(100 - (float64(countMap["ERROR"]) / float64(totalCountSinceLastSnapshot) * 100))
 
 					_, err = client.Database(getDatabaseName()).Collection(getSnapshotCollectionName()).InsertOne(context.TODO(), bson.M{
-						"userId":           latestSnapshot.UserId,
-						"service":          latestSnapshot.Service,
+						"service":          getUrlenv(),
 						"timestamp":        time.Now().UTC(),
 						"totalDownPoints":  newTotalDown,
 						"downDataPoints":   countMap["ERROR"],
@@ -174,16 +176,15 @@ func (h *StatusHandler) StartLiveSnapshot(client *mongo.Client) http.HandlerFunc
 		w.Write([]byte("Live snapshot started"))
 	}
 }
-
 func (h *StatusHandler) GetAnalytics(client *mongo.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		reqBody, err := common.DecodeJSONBody[model.GetSnapshotBody](w, r)
+		reqBody, err := common.DecodeJSONBody[model.SnapshotBody](w, r)
 		if err != nil {
 			common.Error(w, http.StatusBadRequest, "invalid json")
 			return
 		}
-		snapshotBody, err := h.fetchLatestSnapshot(reqBody.UserId)
-		fmt.Println(snapshotBody.CreatedAt, "timestamp when snapshot was created")
+		snapshotBody, err := h.fetchLatestSnapshot(reqBody.Service)
+		fmt.Println(snapshotBody.Timestamp, "timestamp when snapshot was created")
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
 				fmt.Println("no docs")
@@ -205,27 +206,26 @@ func (h *StatusHandler) TestInsert(client *mongo.Client) http.HandlerFunc {
 			return
 		}
 
-		if snap.CreatedAt.IsZero() {
-			snap.CreatedAt = time.Now().UTC()
+		if snap.Timestamp.IsZero() {
+			snap.Timestamp = time.Now().UTC()
 		}
 
 		coll := h.DB.Database(getDatabaseName()).Collection(getSnapshotCollectionName())
 
-		res, err := coll.InsertOne(context.TODO(), bson.M{
-			"userId":           snap.UserId,
+		doc := bson.M{
 			"service":          snap.Service,
-			"timestamp":        snap.CreatedAt,
+			"timestamp":        snap.Timestamp,
 			"totalDataPoints":  snap.TotalDataPoints,
 			"downDataPoints":   snap.DownDataPoints,
 			"uptimePercentage": snap.UptimePercentage,
-		})
+		}
+
+		_, err = coll.InsertOne(context.TODO(), doc)
 		if err != nil {
 			logger.Error("Insert failed", zap.Error(err))
 			http.Error(w, "insert failed", http.StatusInternalServerError)
 			return
 		}
-
-		zap.S().Infof("Inserted document with ID: %v", res.InsertedID)
 
 		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte("Snapshot inserted successfully"))
@@ -240,22 +240,27 @@ func checkService(url string) bool {
 	return true
 }
 
-func (h *StatusHandler) fetchLatestSnapshot(userId string) (model.SnapshotBody, error) {
+func (h *StatusHandler) fetchLatestSnapshot(service string) (model.SnapshotBody, error) {
 	var snapshotBody model.SnapshotBody
 	coll := h.DB.Database(getDatabaseName()).Collection(getSnapshotCollectionName())
-	filter := bson.M{"userId": userId}
+	filter := bson.M{"service": service}
 	opts := options.FindOne().SetSort(bson.D{{Key: "timestamp", Value: -1}})
 	err := coll.FindOne(context.TODO(), filter, opts).Decode(&snapshotBody)
 	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Println("No snapshot found")
+			return snapshotBody, err
+		}
+		logger.Error("Error finding snapshot", zap.Error(err))
 		return snapshotBody, err
 	}
 	return snapshotBody, nil
 }
-func (h *StatusHandler) fetchDatapointsSinceDate(userId string, timestamp time.Time) (map[string]int, error) {
+func (h *StatusHandler) fetchDatapointsSinceDate(service string, timestamp time.Time) (map[string]int, error) {
 	fmt.Println("checking timestamp", timestamp)
-	fmt.Println("checking", userId)
+	fmt.Println("checking", service)
 	filter := bson.M{
-		"service":   userId,
+		"service":   service,
 		"timestamp": bson.M{"$gte": timestamp},
 	}
 
@@ -292,7 +297,7 @@ func (h *StatusHandler) fetchDatapointsSinceDate(userId string, timestamp time.T
 }
 
 func getDatabaseName() string {
-	return os.Getenv("DB_ENV")
+	return os.Getenv("GO_ENV")
 }
 func getCollectionName() string {
 	return os.Getenv("status")

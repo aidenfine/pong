@@ -5,23 +5,17 @@ import (
 )
 
 type CreateStatusUpdateBody struct {
-	Message string `json:"message"`
-	Service string `json:"service"`
-	Status  string `json:"status"`
+	Message string `json:"message" bson:"message"`
+	Service string `json:"service" bson:"service"`
+	Status  string `json:"status" bson:"status"`
 }
 
 type SnapshotBody struct {
-	UserId           string    `json:"userId" bson:"userId"`
 	Service          string    `json:"service" bson:"service"`
-	CreatedAt        time.Time `json:"createdAt" bson:"createdAt"`
+	Timestamp        time.Time `json:"timestamp" bson:"timestamp"`
 	TotalDataPoints  int       `json:"totalDataPoints" bson:"totalDataPoints"`
 	DownDataPoints   int       `json:"downDataPoints" bson:"downDataPoints"`
 	UptimePercentage float64   `json:"uptimePercentage" bson:"uptimePercentage"`
-}
-
-type GetSnapshotBody struct {
-	UserId string `json:"userId"`
-	// add more models like query for specific time frames
 }
 
 type GetStatusBody struct {

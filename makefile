@@ -13,3 +13,6 @@ clean:
 	rm -f ${APP_EXEC}-darwin
 	rm -f ${APP_EXEC}-linux
 	rm -f ${APP_EXEC}-windows
+
+format:
+	go fmt ./...

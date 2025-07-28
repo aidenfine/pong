@@ -20,7 +20,7 @@ var PORT = ":8080"
 
 func main() {
 	_ = godotenv.Load()
-	uri := os.Getenv("DB_URL")
+	uri := os.Getenv("DATABASE_URL")
 	if uri == "" {
 		log.Fatal("NO DB URI")
 	}
