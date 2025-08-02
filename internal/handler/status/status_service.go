@@ -154,7 +154,7 @@ func (h *StatusHandler) StartLiveSnapshot(client *mongo.Client) http.HandlerFunc
 					newTotalDown := latestSnapshot.DownDataPoints + countMap["ERROR"]
 					newTotalDataPoints := latestSnapshot.TotalDataPoints + totalCountSinceLastSnapshot
 
-					uptimePercentage := math.Round(100 - (float64(countMap["ERROR"]) / float64(totalCountSinceLastSnapshot) * 100))
+					uptimePercentage := calculatePercentage(float64(countMap["ERROR"]), float64(totalCountSinceLastSnapshot))
 
 					_, err = client.Database(getDatabaseName()).Collection(getSnapshotCollectionName()).InsertOne(context.TODO(), bson.M{
 						"service":          getUrlenv(),
@@ -294,6 +294,10 @@ func (h *StatusHandler) fetchDatapointsSinceDate(service string, timestamp time.
 	}
 
 	return countMap, nil
+}
+
+func calculatePercentage(errCount float64, totalCount float64) float64 {
+	return math.Round(100 - (errCount/totalCount)*100)
 }
 
 func getDatabaseName() string {
