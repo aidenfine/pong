@@ -8,9 +8,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/aidenfine/pong/internal/api/analytics"
 	"github.com/aidenfine/pong/internal/api/status"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -37,6 +39,14 @@ func main() {
 	}()
 	fmt.Println("Conected to DB")
 	r := chi.NewRouter()
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"}, // or "*" for all
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
 
 	// middleware
 	r.Use(middleware.RequestID)
@@ -49,6 +59,7 @@ func main() {
 
 	// mount routes
 	r.Mount("/status", status.Routes(client))
+	r.Mount("/analytics", analytics.Routes(client))
 	fmt.Println("Server started on port: ", PORT)
 
 	log.Fatal(http.ListenAndServe(PORT, r))
