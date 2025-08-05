@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,30 +14,22 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 var PORT = ":8080"
 
 func main() {
 	_ = godotenv.Load()
-	uri := os.Getenv("DATABASE_URL")
-	if uri == "" {
-		log.Fatal("NO DB URI")
-	}
 
-	client, err := mongo.Connect(options.Client().ApplyURI(uri))
-
+	db, err := sql.Open("duckdb", "database.db")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-	defer func() {
-		if err := client.Disconnect(context.TODO()); err != nil {
-			panic(err)
-		}
-	}()
-	fmt.Println("Conected to DB")
+	defer db.Close()
+	fmt.Println("Connected to DB")
+
+	client := db
+
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
@@ -48,19 +40,19 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	// middleware
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-
-	// timeout after 2 mins
 	r.Use(middleware.Timeout(120 * time.Second))
 
-	// mount routes
 	r.Mount("/status", status.Routes(client))
 	r.Mount("/analytics", analytics.Routes(client))
-	fmt.Println("Server started on port: ", PORT)
 
-	log.Fatal(http.ListenAndServe(PORT, r))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	fmt.Println("Server started on port:", port)
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }

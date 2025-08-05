@@ -16,3 +16,15 @@ clean:
 
 format:
 	go fmt ./...
+
+start-db:
+	@mkdir -p local-db
+	@sh -c ' \
+	if [ -f local-db/local.db ]; then \
+		echo "db already exists, starting database with existing data"; \
+		duckdb local-db/local.db; \
+	else \
+		echo "db does NOT exist, creating new db"; \
+		duckdb local-db/local.db < sql/migrations/init.sql; \
+		duckdb local-db/local.db; \
+	fi'

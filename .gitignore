@@ -3,3 +3,4 @@
 test
 /tmp
 cmd/pong/tmp
+local-db

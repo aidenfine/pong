@@ -2,22 +2,22 @@ package analytics
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"os"
 
 	common "github.com/aidenfine/pong/internal/handler/common"
 	model "github.com/aidenfine/pong/internal/models/analytics"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/zap"
 )
 
 type AnalyticsHandler struct {
-	DB *mongo.Client
+	DB *sql.DB
 }
 
 var logger, _ = zap.NewProduction()
 
-func (h *AnalyticsHandler) PostEvent(client *mongo.Client) http.HandlerFunc {
+func (h *AnalyticsHandler) PostEvent(client *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		event, err := common.DecodeJSONBody[model.EventSchema](w, r)
 		if err != nil {
