@@ -4,3 +4,5 @@ test
 /tmp
 cmd/pong/tmp
 local-db
+local.db
+local.db.wal

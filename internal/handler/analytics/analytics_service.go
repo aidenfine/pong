@@ -1,13 +1,13 @@
 package analytics
 
 import (
-	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
-	"os"
 
 	common "github.com/aidenfine/pong/internal/handler/common"
 	model "github.com/aidenfine/pong/internal/models/analytics"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -21,24 +21,31 @@ func (h *AnalyticsHandler) PostEvent(client *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		event, err := common.DecodeJSONBody[model.EventSchema](w, r)
 		if err != nil {
-			common.Error(w, http.StatusBadRequest, "Invalid Json")
+			logger.Error("Failed to decode json", zap.Error(err))
+			common.Error(w, http.StatusBadRequest, "Invalid JSON")
+
 			return
 		}
-		coll := h.DB.Database(getDatabaseName()).Collection(getAnalyticsCollectionName())
-		_, err = coll.InsertOne(context.TODO(), event)
+		metadataJSON, err := json.Marshal(event.Metadata)
+		if err != nil {
+			logger.Error("Failed to marshal metadata", zap.Error(err))
+			return
+		}
+
+		id := uuid.New()
+
+		query := `INSERT INTO events (id, name, timestamp, metadata)
+          VALUES ($1, $2, $3, $4)`
+
+		_, err = client.Exec(query, id, event.Name, event.Timestamp, string(metadataJSON))
+
 		if err != nil {
 			logger.Error("Insert failed", zap.Error(err))
 			common.Error(w, http.StatusInternalServerError, "Something went wrong")
 			return
 		}
-		logger.Info("Created event")
+
+		logger.Info("Event has been created", zap.String("id", id.String()))
 		common.WriteJSON(w, http.StatusCreated, event)
 	}
-}
-
-func getDatabaseName() string {
-	return os.Getenv("GO_ENV")
-}
-func getAnalyticsCollectionName() string {
-	return os.Getenv("ANALYTICS_COLLECTION_NAME")
 }

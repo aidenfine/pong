@@ -2,7 +2,6 @@ package status
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"math"
 	"net/http"
@@ -21,7 +20,7 @@ var POLLING_RATE = 30
 var SNAPSHOT_CREATION_RATE = 2
 
 type StatusHandler struct {
-	DB *sql.DB
+	DB *mongo.Client
 }
 
 var logger, _ = zap.NewProduction()
@@ -40,7 +39,7 @@ func Health() http.HandlerFunc {
 		}
 	}
 }
-func (h *StatusHandler) CreateStatusUpdate(client *sql.DB) http.HandlerFunc {
+func (h *StatusHandler) CreateStatusUpdate(client *mongo.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		reqBody, err := common.DecodeJSONBody[model.CreateStatusUpdateBody](w, r)
 		if err != nil {
@@ -73,7 +72,7 @@ func (h *StatusHandler) CreateStatusUpdate(client *sql.DB) http.HandlerFunc {
 	}
 }
 
-func (h *StatusHandler) StartPolling(client *sql.DB) http.HandlerFunc {
+func (h *StatusHandler) StartPolling(client *mongo.Client) http.HandlerFunc {
 	urlValue := os.Getenv("URL")
 	url := urlValue
 	ctx := context.Background()
@@ -111,7 +110,7 @@ func (h *StatusHandler) StartPolling(client *sql.DB) http.HandlerFunc {
 	}
 }
 
-func (h *StatusHandler) StartLiveSnapshot(client *sql.DB) http.HandlerFunc {
+func (h *StatusHandler) StartLiveSnapshot(client *mongo.Client) http.HandlerFunc {
 	url := os.Getenv("URL")
 	ctx := context.Background()
 
@@ -177,7 +176,7 @@ func (h *StatusHandler) StartLiveSnapshot(client *sql.DB) http.HandlerFunc {
 		w.Write([]byte("Live snapshot started"))
 	}
 }
-func (h *StatusHandler) GetAnalytics(client *sql.DB) http.HandlerFunc {
+func (h *StatusHandler) GetAnalytics(client *mongo.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		reqBody, err := common.DecodeJSONBody[model.SnapshotBody](w, r)
 		if err != nil {
@@ -199,7 +198,7 @@ func (h *StatusHandler) GetAnalytics(client *sql.DB) http.HandlerFunc {
 	}
 }
 
-func (h *StatusHandler) TestInsert(client *sql.DB) http.HandlerFunc {
+func (h *StatusHandler) TestInsert(client *mongo.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		snap, err := common.DecodeJSONBody[model.SnapshotBody](w, r)
 		if err != nil {
