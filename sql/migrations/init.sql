@@ -39,9 +39,15 @@ CREATE TABLE sessions (
     user_agent TEXT,
     properties JSON
 );
+CREATE TABLE projects (
+  id UUID PRIMARY KEY,
+  url TEXT,
+  data_tags JSON
+);
 
 CREATE TABLE events (
   id UUID PRIMARY KEY,
+  project_id UUID REFERENCES projects(id),
   -- user_id UUID REFERENCES users(id),
   -- session_id UUID REFERENCES sessions(id),
   name TEXT NOT NULL, -- click, submit etc..
